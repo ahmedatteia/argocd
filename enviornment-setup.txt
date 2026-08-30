@@ -1,0 +1,139 @@
+-  Linux OS version OracleLinux-R9-U8-x86_64-dvd.iso    URL: https://yum.oracle.com/oracle-linux-isos.html#content-1  VM Hardware 2 CPU and 7 GB RAM memory  100 GB disk 
+  -- [ahmed@server1 argocd]$ cat /etc/redhat-release
+  -- Red Hat Enterprise Linux release 9.8 (Plow)
+- Linux OS installed using Oracle VirtualBox -- version 7.2.8.  two network cards one dapter NAT and adapter host-only  
+- git installation on 
+- git setup on linux --   sudo dnf install -y git
+- validate git git --version 
+- create local-key ssh-keygen -t ed25519 -C "ahmedatteia@hotmail.com"
+- copy key and add in git your profile 
+- cat ~/.ssh/id_ed25519.pub
+- Add it to GitHub:Open your web browser 
+- and log into GitHub.Go directly to the SSH settings page: https://github.com/settings/keys.
+- Click the green "New SSH key" button.
+- In the Title box, type: server1-ahmed.Paste the copied text line into the Key box.
+- Once saved on GitHub
+- Clone the repository
+- go back to your terminal and run the clone command again:bashgit clone git@github.com:ahmedatteia/argocd.git
+
+
+-----------  docker setup on linux 
+
+1. Remove Pre-installed Conflicts
+sudo dnf remove -y docker \
+                  docker-client \
+                  docker-client-latest \
+                  docker-common \
+                  docker-latest \
+                  docker-latest-logrotate \
+                  docker-logrotate \
+                  docker-engine \
+                  podman \
+                  runc
+
+
+2. Configure the Official Repository
+
+sudo dnf install -y dnf-plugins-core
+sudo curl -sSL https://docker.com -o /etc/yum.repos.d/docker-ce.repo
+sudo dnf clean all
+
+
+3. Install Docker Engine
+
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+4. Enable Services and Set Up User Permissions
+# Start Docker and configure it to boot automatically
+sudo systemctl enable --now docker
+
+# Add your user to the newly created docker group
+sudo usermod -aG docker $USER
+
+# Apply group changes to your current terminal session immediately
+newgrp docker
+
+5. Verify the Setup
+docker run hello-world
+docker images
+
+
+---------------------- Download and Install the kubectl Binary
+# 1. Download the matching v1.35.1 stable release binary for Linux AMD64
+curl -LO "https://k8s.io"
+
+# 2. Grant executable flags and install it system-wide inside /usr/local/bin
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# 3. Safely wipe out the temporary source download artifact file
+rm -f kubectl
+
+Verify 
+[ahmed@server1 argocd]$ kubectl version --client
+Client Version: v1.37.0
+Kustomize Version: v5.8.1
+
+
+---------------------------------------------------- Install kubernetes-sigs KinD Binary  
+--- donwload rpm from URL https://github.com/kubernetes-sigs/kind/releases   donwloaded kind-linux-amd64
+
+Install the KinD Binary
+
+# 1. Grant execution permissions to the downloaded binary
+chmod +x kind-linux-amd64
+
+# 2. Move it to your global system path and rename it simply to 'kind'
+sudo mv kind-linux-amd64 /usr/local/bin/kind
+
+--- Cluster setup 
+mkdir -p /app2/git/projects/argocd/config/
+
+# 1. Move to your home directory (outside your git repo)
+cd ~
+
+# 2. Create the cluster.yml file right here
+
+cat <<EOF > cluster.yml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  image: kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+- role: worker
+  image: kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
+- role: worker
+  image: kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
+EOF
+   
+
+
+/app2/git/projects/argocd/config/Cluster.yml
+
+-- create cluster 
+kind create cluster --config ./cluster.yml --name dev-cluster
+
+
+
+
+
+-------------------------Continue to ArgoCD Setup
+
+
+
+
+
+
+
