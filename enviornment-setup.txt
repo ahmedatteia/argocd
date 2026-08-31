@@ -119,14 +119,183 @@ nodes:
 EOF
    
 
-
 /app2/git/projects/argocd/config/Cluster.yml
 
 -- create cluster 
 kind create cluster --config ./cluster.yml --name dev-cluster
 
 
+---------------------hel setup kubernets package manager 
 
+https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+
+[ahmed@server1 ~]$ helm repo add argo https://argoproj.github.io/argo-helm
+"argo" has been added to your repositories
+-- validate created namespaces 
+kubectl get namespace
+
+incase you will need to create new namespace 
+[ahmed@server1 ~]$ kubectl create namespace argocd
+
+--- now  you will link argo with repo
+helm install argocd -n argocd argo/argo-cd 
+
+
+--- How to Debug and Resolve the Hang
+kubectl get pods -n argocd
+kubectl get jobs -n argocd
+
+--- to read creation log file 
+kubectl describe pod argocd-redis-secret-init-74pkx -n argocd
+
+exmaple 
+
+[ahmed@server1 ~]$ kubectl get pods -n argocd
+NAME                             READY   STATUS              RESTARTS   AGE
+argocd-redis-secret-init-74pkx   0/1     ContainerCreating   0          8m50s
+[ahmed@server1 ~]$ kubectl get jobs -n argocd
+NAME                       STATUS    COMPLETIONS   DURATION   AGE
+argocd-redis-secret-init   Running   0/1           9m16s      9m16s
+[ahmed@server1 ~]$ kubectl describe pod argocd-redis-secret-init-74pkx -n argocd
+Name:             argocd-redis-secret-init-74pkx
+Namespace:        argocd
+Priority:         0
+Service Account:  argocd-redis-secret-init
+Node:             minikube/192.168.49.2
+Start Time:       Mon, 31 Aug 2026 11:46:52 +0400
+Labels:           app.kubernetes.io/component=redis-secret-init
+                  app.kubernetes.io/instance=argocd
+                  app.kubernetes.io/managed-by=Helm
+                  app.kubernetes.io/name=argocd-redis-secret-init
+                  app.kubernetes.io/part-of=argocd
+                  app.kubernetes.io/version=v3.5.2
+                  batch.kubernetes.io/controller-uid=d6590602-cdd1-40c7-afbb-2bd0ce7c2794
+                  batch.kubernetes.io/job-name=argocd-redis-secret-init
+                  controller-uid=d6590602-cdd1-40c7-afbb-2bd0ce7c2794
+                  helm.sh/chart=argo-cd-10.4.2
+                  job-name=argocd-redis-secret-init
+Annotations:      <none>
+Status:           Pending
+IP:
+IPs:              <none>
+Controlled By:    Job/argocd-redis-secret-init
+Containers:
+  secret-init:
+    Container ID:
+    Image:           quay.io/argoproj/argocd:v3.5.2
+    Image ID:
+    Port:            <none>
+    Host Port:       <none>
+    SeccompProfile:  RuntimeDefault
+    Command:
+      argocd
+      admin
+      redis-initial-password
+    State:          Waiting
+      Reason:       ContainerCreating
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-4zfz4 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   False
+  Initialized                 True
+  Ready                       False
+  ContainersReady             False
+  PodScheduled                True
+Volumes:
+  kube-api-access-4zfz4:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              kubernetes.io/os=linux
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  10m   default-scheduler  Successfully assigned argocd/argocd-redis-secret-init-74pkx to minikube
+  Normal  Pulling    10m   kubelet            spec.containers{secret-init}: Pulling image "quay.io/argoproj/argocd:v3.5.2"
+
+
+
+-------------------Manually Force-Cache the Image into Minikube
+
+-- Clean up the stuck install     helm uninstall argocd -n argocd
+-- Force minikube to download and cache the exact image    minikube image load quay.io/argoproj/argocd:v3.5.2
+-- Re-run your install command    helm install argocd -n argocd argo/argo-cd
+
+
+-----------Built-in Minikube Dashboard
+
+minikube dashboard
+--- Accessing it remotely
+ssh -L 8001:127.0.0.1:8001 ahmed@server1
+ go to: http://localhost:8001
+
+-------. Headless Terminal GUI: K9s (Highly Recommended)
+# Using Homebrew or binary download
+curl -sS https://webinstall.dev | bash
+open --     k9s
+# 1. Install K9s using the webi package manager
+webi k9s
+
+# 2. Source your bash configuration to update your system's PATH
+source ~/.bashrc
+
+# 3. Launch the dashboard interface
+k9s
+
+--- check kubernet cluster runing 
+minikube status
+kubectl cluster-info
+kubectl get nodes
+kubectl get pods -n kube-system
+
+--- start kuber net 
+minikube start
+-- Force-Recover
+minikube delete
+minikube start
+
+--- kubernets cluster run on diffrent server 
+kubectl config get-contexts
+kubectl cluster-info
+curl -k https://<REMOTE_SERVER_IP>:6443/version
+kubectl get nodes -o wide    -- Check Remote Node Operational Readiness
+kubectl get componentstatuses   -- Check Global Component Health
+
+----- Check the Container Runtime Status
+sudo systemctl status containerd
+# OR
+sudo systemctl status docker
+
+---- Kubelet Agent Status
+sudo systemctl status kubelet   -- Kubelet Agent Status
+sudo systemctl restart containerd kubelet    -- Restart Services
+
+
+-------- get cluster serects 
+kubectl get secrets -n argocd
+
+---------Clean Up the Broken Installation
+helm uninstall argocd -n argocd
+--Clear Out Existing Secrets
+kubectl delete secret argocd-secret argocd-notifications-secret argocd-redis -n argocd
+-- Run a Clean, Optimized Re-Installation
+helm install argocd -n argocd argo/argo-cd \
+  --set redis.idp.persistence.enabled=false \
+  --set redis.persistence.enabled=false \
+  --set server.service.type=NodePort
+
+
+--------Monitor the Deployment via K9s
+k9s -n argocd
 
 
 -------------------------Continue to ArgoCD Setup
